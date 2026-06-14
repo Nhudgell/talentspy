@@ -37,6 +37,8 @@ export function DetailPanel() {
   const setFocus = useStore((s) => s.setFocus);
   const focusId = useStore((s) => s.focusId);
   const scenario = useStore((s) => s.scenario);
+  const scenarioMode = useStore((s) => s.scenarioMode);
+  const removePosition = useStore((s) => s.removePosition);
 
   if (!selectedId) {
     return (
@@ -66,14 +68,26 @@ export function DetailPanel() {
       <div style={{ fontSize: 16, fontWeight: 700 }}>{r.name}</div>
       <div className="muted">{r.fields.jobTitle ?? r.fields.positionTitle ?? ""}</div>
 
-      <div className="row" style={{ gap: 6, margin: "10px 0" }}>
+      <div className="row" style={{ gap: 6, margin: "10px 0", flexWrap: "wrap" }}>
         <button
           onClick={() => setFocus(focusId === node.id ? null : node.id)}
           className={focusId === node.id ? "primary" : ""}
         >
           {focusId === node.id ? "Clear focus" : "Focus sub-tree"}
         </button>
+        {scenarioMode && (
+          <button onClick={() => removePosition(node.id)} title="Remove this position in the scenario">
+            🗑 Remove position
+          </button>
+        )}
       </div>
+      {scenarioMode && node.directReports > 0 && (
+        <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
+          Removing this position moves its {node.directReports} direct report
+          {node.directReports === 1 ? "" : "s"} up to{" "}
+          {manager ? manager.record.name : "the top level"}.
+        </div>
+      )}
 
       <div className="kv"><span className="k">ID</span><span className="v">{node.id}</span></div>
       <div className="kv"><span className="k">Manager</span><span className="v">{manager ? manager.record.name : "—"}</span></div>

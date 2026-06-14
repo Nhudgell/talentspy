@@ -36,8 +36,14 @@ export function ComparisonModal({ onClose }: { onClose: () => void }) {
           <button className="ghost" onClick={onClose}>✕</button>
         </div>
 
-        <div className="row" style={{ gap: 16, margin: "12px 0" }}>
+        <div className="row" style={{ gap: 16, margin: "12px 0", flexWrap: "wrap" }}>
           <span className="badge info">{comparison.movedNodes.length} roles moved</span>
+          <span className="badge info">{comparison.removedNodes.length} positions removed</span>
+          {comparison.estimatedSavings > 0 && (
+            <span className="badge info" style={{ background: "#dcfce7", color: "#166534" }}>
+              {Intl.NumberFormat().format(comparison.estimatedSavings)} est. savings
+            </span>
+          )}
           {comparison.issuesResolved > 0 && <span className="badge info" style={{ background: "#dcfce7", color: "#166534" }}>{comparison.issuesResolved} issues resolved</span>}
           {comparison.issuesIntroduced > 0 && <span className="badge error">{comparison.issuesIntroduced} issues introduced</span>}
         </div>
@@ -75,6 +81,22 @@ export function ComparisonModal({ onClose }: { onClose: () => void }) {
               ))}
             </tbody>
           </table>
+        )}
+
+        {comparison.removedNodes.length > 0 && (
+          <>
+            <div className="section-title">Removed positions</div>
+            <table className="preview" style={{ fontSize: 13 }}>
+              <thead>
+                <tr><th>Position</th><th>Compensation</th></tr>
+              </thead>
+              <tbody>
+                {comparison.removedNodes.map((n) => (
+                  <tr key={n.id}><td>{n.name}</td><td>{Intl.NumberFormat().format(n.compensation)}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </>
         )}
 
         <div className="row" style={{ justifyContent: "flex-end", marginTop: 16 }}>

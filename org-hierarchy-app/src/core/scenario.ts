@@ -8,7 +8,7 @@ import type {
   Thresholds,
 } from "../types";
 import { buildHierarchy, isAncestor } from "./hierarchy";
-import { computeMetrics } from "./metrics";
+import { computeMetrics, compensation } from "./metrics";
 
 export function newScenario(name: string, description = ""): Scenario {
   return {
@@ -17,16 +17,59 @@ export function newScenario(name: string, description = ""): Scenario {
     description,
     createdAt: Date.now(),
     parentOverrides: {},
+    removed: {},
     changes: [],
   };
 }
 
-/** Apply a scenario's overrides to baseline records, producing new records. */
+function newId(): string {
+  return `chg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+}
+
+/**
+ * Derive the scenario's effective state (parent overrides + removed set) by
+ * replaying its change log. This is the single source of truth so undo/redo
+ * only need to add or drop changes.
+ */
+export function deriveScenarioState(changes: ScenarioChange[]): Pick<Scenario, "parentOverrides" | "removed"> {
+  const parentOverrides: Record<string, string | null> = {};
+  const removed: Record<string, true> = {};
+  for (const c of changes) {
+    if (c.type === "move") parentOverrides[c.targetId] = c.newManagerId ?? null;
+    else if (c.type === "remove") removed[c.targetId] = true;
+  }
+  return { parentOverrides, removed };
+}
+
+/**
+ * Apply a scenario to baseline records (PRD 10). Moves re-point managers;
+ * removals drop the position and re-parent its reports to the nearest
+ * surviving ancestor (so a removed manager's team moves up a level).
+ */
 export function applyScenario(baseline: OrgRecord[], scenario: Scenario | null): OrgRecord[] {
-  if (!scenario || Object.keys(scenario.parentOverrides).length === 0) return baseline;
-  return baseline.map((r) =>
-    r.id in scenario.parentOverrides ? { ...r, managerId: scenario.parentOverrides[r.id] } : r,
-  );
+  if (!scenario) return baseline;
+  const { parentOverrides, removed } = scenario;
+  if (Object.keys(parentOverrides).length === 0 && Object.keys(removed).length === 0) return baseline;
+
+  const managerOf = new Map<string, string | null>();
+  for (const r of baseline) {
+    managerOf.set(r.id, r.id in parentOverrides ? parentOverrides[r.id] : r.managerId);
+  }
+
+  const resolveManager = (id: string): string | null => {
+    let m = managerOf.get(id) ?? null;
+    const guard = new Set<string>();
+    while (m != null && removed[m]) {
+      if (guard.has(m)) return null; // defensive against cycles
+      guard.add(m);
+      m = managerOf.get(m) ?? null;
+    }
+    return m ?? null;
+  };
+
+  return baseline
+    .filter((r) => !removed[r.id])
+    .map((r) => ({ ...r, managerId: resolveManager(r.id) }));
 }
 
 export interface MoveResult {
@@ -57,23 +100,40 @@ export function applyMove(
 ): Scenario {
   const previous = graph.nodes.get(nodeId)?.parentId ?? null;
   const change: ScenarioChange = {
-    id: `chg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+    id: newId(),
     type: "move",
     targetId: nodeId,
     previousManagerId: previous,
     newManagerId,
     timestamp: Date.now(),
   };
-  return {
-    ...scenario,
-    parentOverrides: { ...scenario.parentOverrides, [nodeId]: newManagerId },
-    changes: [...scenario.changes, change],
+  const changes = [...scenario.changes, change];
+  return { ...scenario, changes, ...deriveScenarioState(changes) };
+}
+
+/** Returns a new scenario with the position removed and logged (PRD 10.2). */
+export function applyRemove(scenario: Scenario, nodeId: string, graph: HierGraph): Scenario {
+  const change: ScenarioChange = {
+    id: newId(),
+    type: "remove",
+    targetId: nodeId,
+    previousManagerId: graph.nodes.get(nodeId)?.parentId ?? null,
+    timestamp: Date.now(),
   };
+  const changes = [...scenario.changes, change];
+  return { ...scenario, changes, ...deriveScenarioState(changes) };
+}
+
+/** Restore a previously removed position by dropping its remove change(s). */
+export function restorePosition(scenario: Scenario, nodeId: string): Scenario {
+  const changes = scenario.changes.filter((c) => !(c.type === "remove" && c.targetId === nodeId));
+  return { ...scenario, changes, ...deriveScenarioState(changes) };
 }
 
 /** Node ids that differ from baseline (changed in scenario — PRD 8.2). */
 export function changedNodeIds(scenario: Scenario | null): Set<string> {
-  return new Set(scenario ? Object.keys(scenario.parentOverrides) : []);
+  if (!scenario) return new Set();
+  return new Set([...Object.keys(scenario.parentOverrides), ...Object.keys(scenario.removed)]);
 }
 
 /** Compare baseline vs scenario graphs (PRD 10.5). */
@@ -87,12 +147,21 @@ export function compareScenario(
   const scnGraph = buildHierarchy(applyScenario(baselineRecords, scenario));
 
   const nameOf = (id: string) => baseGraph.nodes.get(id)?.record.name ?? id;
-  const movedNodes = Object.entries(scenario.parentOverrides).map(([id, to]) => ({
+  const movedNodes = Object.entries(scenario.parentOverrides)
+    .filter(([id]) => !scenario.removed[id])
+    .map(([id, to]) => ({
+      id,
+      name: nameOf(id),
+      from: baseGraph.nodes.get(id)?.parentId ? nameOf(baseGraph.nodes.get(id)!.parentId!) : "(root)",
+      to: to ? nameOf(to) : "(root)",
+    }));
+
+  const removedNodes = Object.keys(scenario.removed).map((id) => ({
     id,
     name: nameOf(id),
-    from: baseGraph.nodes.get(id)?.parentId ? nameOf(baseGraph.nodes.get(id)!.parentId!) : "(root)",
-    to: to ? nameOf(to) : "(root)",
+    compensation: baseGraph.nodes.get(id) ? compensation(baseGraph.nodes.get(id)!.record) : 0,
   }));
+  const estimatedSavings = removedNodes.reduce((sum, n) => sum + n.compensation, 0);
 
   const baseMetrics = computeMetrics(baseGraph, rank, thresholds);
   const scnMetrics = computeMetrics(scnGraph, rank, thresholds);
@@ -123,6 +192,8 @@ export function compareScenario(
 
   return {
     movedNodes,
+    removedNodes,
+    estimatedSavings,
     metricDeltas,
     issuesResolved: diff < 0 ? -diff : 0,
     issuesIntroduced: diff > 0 ? diff : 0,

@@ -4,7 +4,7 @@ import { buildHierarchy, isAncestor, subtreeIds } from "../hierarchy";
 import { validate } from "../validate";
 import { computeMetrics, DEFAULT_THRESHOLDS } from "../metrics";
 import { deriveGradeOrder, rankMap } from "../grades";
-import { applyMove, applyScenario, newScenario, validateMove, compareScenario } from "../scenario";
+import { applyMove, applyRemove, applyScenario, newScenario, restorePosition, validateMove, compareScenario } from "../scenario";
 import { autoDetectMapping } from "../fields";
 import { parseCsv, buildRecords } from "../parse";
 
@@ -117,6 +117,44 @@ describe("scenario", () => {
     const g2 = buildHierarchy(records);
     expect(g2.nodes.get("5")!.parentId).toBe("3");
     expect(g2.nodes.get("3")!.directReports).toBe(1);
+  });
+
+  it("removes a position and re-parents its reports to the manager", () => {
+    const g = buildHierarchy(SAMPLE);
+    let scn = newScenario("s");
+    scn = applyRemove(scn, "2", g); // 2 manages 4 and 5; their manager is 1
+    const records = applyScenario(SAMPLE, scn);
+    expect(records.find((r) => r.id === "2")).toBeUndefined();
+    const g2 = buildHierarchy(records);
+    expect(g2.nodes.get("4")!.parentId).toBe("1");
+    expect(g2.nodes.get("5")!.parentId).toBe("1");
+    expect(g2.nodes.has("2")).toBe(false);
+  });
+
+  it("restore reverses a removal", () => {
+    const g = buildHierarchy(SAMPLE);
+    let scn = applyRemove(newScenario("s"), "5", g);
+    expect(scn.removed["5"]).toBe(true);
+    scn = restorePosition(scn, "5");
+    expect(scn.removed["5"]).toBeUndefined();
+    expect(applyScenario(SAMPLE, scn).some((r) => r.id === "5")).toBe(true);
+  });
+
+  it("reports removed positions and estimated savings in the comparison", () => {
+    const withComp: OrgRecord[] = [
+      rec("1", null, {}, "CEO"),
+      rec("2", "1", { totalCompensation: "150000" }, "VP"),
+      rec("3", "2", { totalCompensation: "90000" }, "IC"),
+    ];
+    const g = buildHierarchy(withComp);
+    const rank = rankMap(deriveGradeOrder(withComp));
+    const scn = applyRemove(newScenario("s"), "2", g);
+    const cmp = compareScenario(withComp, scn, rank, DEFAULT_THRESHOLDS);
+    expect(cmp.removedNodes).toHaveLength(1);
+    expect(cmp.estimatedSavings).toBe(150000);
+    // total compensation drops by the removed comp
+    const totalDelta = cmp.metricDeltas.find((d) => d.key === "totalCompensation")!;
+    expect(totalDelta.delta).toBe(-150000);
   });
 
   it("produces a comparison with moved nodes", () => {

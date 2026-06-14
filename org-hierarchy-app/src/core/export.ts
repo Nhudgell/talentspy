@@ -60,6 +60,10 @@ export function exportComparisonCsv(comparison: ScenarioComparison) {
   rows.push([]);
   rows.push(["Moved node", "From manager", "To manager", ""]);
   for (const m of comparison.movedNodes) rows.push([m.name, m.from, m.to, ""]);
+  rows.push([]);
+  rows.push(["Removed position", "Compensation", "", ""]);
+  for (const n of comparison.removedNodes) rows.push([n.name, n.compensation, "", ""]);
+  rows.push(["Estimated annual savings", comparison.estimatedSavings, "", ""]);
   downloadBlob(toCsv(rows), "scenario-comparison.csv", "text/csv");
 }
 

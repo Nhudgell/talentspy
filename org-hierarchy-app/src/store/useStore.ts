@@ -19,7 +19,15 @@ import { deriveGradeOrder } from "../core/grades";
 import { DEFAULT_THRESHOLDS } from "../core/metrics";
 import { DEFAULT_HIGHLIGHT_RULES } from "../core/highlight";
 import { EMPTY_FILTERS } from "../core/filter";
-import { applyMove, applyScenario, newScenario, validateMove } from "../core/scenario";
+import {
+  applyMove,
+  applyRemove,
+  applyScenario,
+  deriveScenarioState,
+  newScenario,
+  restorePosition,
+  validateMove,
+} from "../core/scenario";
 import { sampleParsedRows, sampleRecords, SAMPLE_MAPPING } from "../core/sampleData";
 
 type Step = "upload" | "mapping" | "workbench";
@@ -66,6 +74,8 @@ interface AppState {
   enterScenarioMode: (name?: string) => void;
   exitScenarioMode: () => void;
   moveNode: (nodeId: string, newManagerId: string) => void;
+  removePosition: (nodeId: string) => void;
+  restorePosition: (nodeId: string) => void;
   undo: () => void;
   redo: () => void;
   resetScenario: () => void;
@@ -201,15 +211,33 @@ export const useStore = create<AppState>((set, get) => ({
     });
   },
 
+  removePosition: (nodeId) => {
+    const { graph, scenario, baseRecords, selectedId, focusId } = get();
+    if (!graph || !scenario || scenario.removed[nodeId]) return;
+    const next = applyRemove(scenario, nodeId, graph);
+    set({
+      scenario: next,
+      redoStack: [],
+      graph: rebuildGraph(baseRecords, next),
+      // The removed node is gone from the graph; drop stale selection/focus.
+      selectedId: selectedId === nodeId ? null : selectedId,
+      focusId: focusId === nodeId ? null : focusId,
+    });
+  },
+
+  restorePosition: (nodeId) => {
+    const { scenario, baseRecords } = get();
+    if (!scenario) return;
+    const next = restorePosition(scenario, nodeId);
+    set({ scenario: next, redoStack: [], graph: rebuildGraph(baseRecords, next) });
+  },
+
   undo: () => {
     const { scenario, baseRecords, redoStack } = get();
     if (!scenario || scenario.changes.length === 0) return;
     const changes = [...scenario.changes];
     const undone = changes.pop()!;
-    // Recompute overrides from the remaining change log.
-    const overrides: Record<string, string | null> = {};
-    for (const c of changes) if (c.type === "move") overrides[c.targetId] = c.newManagerId ?? null;
-    const next: Scenario = { ...scenario, changes, parentOverrides: overrides };
+    const next: Scenario = { ...scenario, changes, ...deriveScenarioState(changes) };
     set({ scenario: next, redoStack: [...redoStack, undone], graph: rebuildGraph(baseRecords, next) });
   },
 
@@ -219,17 +247,15 @@ export const useStore = create<AppState>((set, get) => ({
     const stack = [...redoStack];
     const change = stack.pop()!;
     const changes = [...scenario.changes, change];
-    const overrides: Record<string, string | null> = { ...scenario.parentOverrides };
-    if (change.type === "move") overrides[change.targetId] = change.newManagerId ?? null;
-    const next: Scenario = { ...scenario, changes, parentOverrides: overrides };
+    const next: Scenario = { ...scenario, changes, ...deriveScenarioState(changes) };
     set({ scenario: next, redoStack: stack, graph: rebuildGraph(baseRecords, next) });
   },
 
   resetScenario: () => {
     const { scenario, baseRecords } = get();
     if (!scenario) return;
-    const next: Scenario = { ...scenario, changes: [], parentOverrides: {} };
-    set({ scenario: next, redoStack: [], graph: rebuildGraph(baseRecords, next) });
+    const next: Scenario = { ...scenario, changes: [], parentOverrides: {}, removed: {} };
+    set({ scenario: next, redoStack: [], graph: rebuildGraph(baseRecords, next), selectedId: null });
   },
 
   clearMoveError: () => set({ lastMoveError: null }),

@@ -186,7 +186,7 @@ export interface HighlightRule {
   enabled: boolean;
 }
 
-export type ScenarioChangeType = "move" | "updateAttribute";
+export type ScenarioChangeType = "move" | "remove" | "updateAttribute";
 
 export interface ScenarioChange {
   id: string;
@@ -208,12 +208,16 @@ export interface Scenario {
   createdAt: number;
   /** Override of parentId per node id (move changes). */
   parentOverrides: Record<string, string | null>;
+  /** Position ids removed in the scenario (their reports move up a level). */
+  removed: Record<string, true>;
   /** Ordered change log (also drives undo/redo with the redo stack). */
   changes: ScenarioChange[];
 }
 
 export interface ScenarioComparison {
   movedNodes: { id: string; name: string; from: string; to: string }[];
+  removedNodes: { id: string; name: string; compensation: number }[];
+  estimatedSavings: number;
   metricDeltas: { key: keyof Metrics; label: string; baseline: number; scenario: number; delta: number }[];
   issuesResolved: number;
   issuesIntroduced: number;

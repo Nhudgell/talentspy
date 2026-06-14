@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useStore } from "../../store/useStore";
-import { useMetrics, usePopulationIds } from "../../store/derived";
+import { useMetrics, usePopulationIds, useScenarioSavings } from "../../store/derived";
 import { distinctValues, hasActiveFilters } from "../../core/filter";
 import { FIELD_BY_KEY } from "../../core/fields";
 import { exportMetricsCsv } from "../../core/export";
@@ -53,6 +53,9 @@ export function LeftPanel() {
   const toggleHighlight = useStore((s) => s.toggleHighlight);
   const gradeOrder = useStore((s) => s.gradeOrder);
   const setGradeOrder = useStore((s) => s.setGradeOrder);
+  const scenarioMode = useStore((s) => s.scenarioMode);
+  const restorePosition = useStore((s) => s.restorePosition);
+  const savings = useScenarioSavings();
 
   const availableFilters = useMemo(
     () => FILTERABLE.map((f) => ({ field: f, values: distinctValues(graph, f) })).filter((x) => x.values.length > 1),
@@ -101,6 +104,40 @@ export function LeftPanel() {
           <span className="v">{row.money ? money(metrics[row.key] as number) : metrics[row.key]}</span>
         </div>
       ))}
+
+      {scenarioMode && (
+        <>
+          <div className="section-title">Scenario impact</div>
+          <div className="metric">
+            <span>Removed positions</span>
+            <span className="v">{savings.removedCount}</span>
+          </div>
+          <div className="metric" style={{ borderBottom: "none" }}>
+            <span>Estimated annual savings</span>
+            <span className="v" style={{ color: savings.savings > 0 ? "var(--ok)" : undefined }}>
+              {savings.savings > 0 ? Intl.NumberFormat().format(savings.savings) : "—"}
+            </span>
+          </div>
+          {savings.removed.length > 0 && (
+            <div style={{ marginTop: 6 }}>
+              {savings.removed.map((r) => (
+                <div key={r.id} className="row spread" style={{ padding: "3px 0", fontSize: 12 }}>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={r.name}>
+                    {r.name} · {money(r.compensation)}
+                  </span>
+                  <button
+                    className="ghost"
+                    style={{ fontSize: 11, padding: "0 6px" }}
+                    onClick={() => restorePosition(r.id)}
+                  >
+                    Restore
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
 
       <div className="section-title">Highlighting</div>
       {highlightRules.map((r) => (
