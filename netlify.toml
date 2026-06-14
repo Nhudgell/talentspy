@@ -1,0 +1,18 @@
+# Netlify build configuration.
+#
+# The app lives in the org-hierarchy-app/ subdirectory, so we point Netlify's
+# build at it. When `base` is set, all other paths in this file (command cwd,
+# publish, redirects) are resolved relative to that base directory.
+[build]
+  base = "org-hierarchy-app"
+  command = "npm run build"
+  publish = "dist"            # => org-hierarchy-app/dist
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# SPA fallback: serve index.html for any path so deep links don't 404.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
