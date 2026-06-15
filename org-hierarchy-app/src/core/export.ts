@@ -63,7 +63,13 @@ export function exportComparisonCsv(comparison: ScenarioComparison) {
   rows.push([]);
   rows.push(["Removed position", "Compensation", "", ""]);
   for (const n of comparison.removedNodes) rows.push([n.name, n.compensation, "", ""]);
-  rows.push(["Estimated annual savings", comparison.estimatedSavings, "", ""]);
+  rows.push([]);
+  rows.push(["Added position", "Reports to", "Compensation", ""]);
+  for (const n of comparison.addedNodes) rows.push([n.name, n.manager, n.compensation, ""]);
+  rows.push([]);
+  rows.push(["Removal savings", comparison.estimatedSavings, "", ""]);
+  rows.push(["Added cost", comparison.addedCost, "", ""]);
+  rows.push(["Net annual change", comparison.netCostChange, "", ""]);
   downloadBlob(toCsv(rows), "scenario-comparison.csv", "text/csv");
 }
 

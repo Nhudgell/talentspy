@@ -20,14 +20,17 @@ import { DEFAULT_THRESHOLDS } from "../core/metrics";
 import { DEFAULT_HIGHLIGHT_RULES } from "../core/highlight";
 import { EMPTY_FILTERS } from "../core/filter";
 import {
+  applyAdd,
   applyMove,
   applyRemove,
   applyScenario,
   deriveScenarioState,
+  makeVacantPosition,
   newScenario,
   restorePosition,
   validateMove,
 } from "../core/scenario";
+import type { FieldKey } from "../types";
 import { sampleParsedRows, sampleRecords, SAMPLE_MAPPING } from "../core/sampleData";
 
 type Step = "upload" | "mapping" | "workbench";
@@ -74,6 +77,7 @@ interface AppState {
   enterScenarioMode: (name?: string) => void;
   exitScenarioMode: () => void;
   moveNode: (nodeId: string, newManagerId: string) => void;
+  addPosition: (managerId: string, fields: Partial<Record<FieldKey, string>>) => void;
   removePosition: (nodeId: string) => void;
   restorePosition: (nodeId: string) => void;
   undo: () => void;
@@ -211,6 +215,19 @@ export const useStore = create<AppState>((set, get) => ({
     });
   },
 
+  addPosition: (managerId, fields) => {
+    const { scenario, baseRecords } = get();
+    if (!scenario) return;
+    const record = makeVacantPosition(managerId, fields);
+    const next = applyAdd(scenario, record);
+    set({
+      scenario: next,
+      redoStack: [],
+      graph: rebuildGraph(baseRecords, next),
+      selectedId: record.id, // select the new position so its details show
+    });
+  },
+
   removePosition: (nodeId) => {
     const { graph, scenario, baseRecords, selectedId, focusId } = get();
     if (!graph || !scenario || scenario.removed[nodeId]) return;
@@ -254,7 +271,7 @@ export const useStore = create<AppState>((set, get) => ({
   resetScenario: () => {
     const { scenario, baseRecords } = get();
     if (!scenario) return;
-    const next: Scenario = { ...scenario, changes: [], parentOverrides: {}, removed: {} };
+    const next: Scenario = { ...scenario, changes: [], parentOverrides: {}, removed: {}, added: [] };
     set({ scenario: next, redoStack: [], graph: rebuildGraph(baseRecords, next), selectedId: null });
   },
 

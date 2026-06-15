@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useStore } from "../../store/useStore";
-import { useMetrics, usePopulationIds, useScenarioSavings } from "../../store/derived";
+import { useMetrics, usePopulationIds, useScenarioImpact } from "../../store/derived";
 import { distinctValues, hasActiveFilters } from "../../core/filter";
 import { FIELD_BY_KEY } from "../../core/fields";
 import { exportMetricsCsv } from "../../core/export";
@@ -55,7 +55,7 @@ export function LeftPanel() {
   const setGradeOrder = useStore((s) => s.setGradeOrder);
   const scenarioMode = useStore((s) => s.scenarioMode);
   const restorePosition = useStore((s) => s.restorePosition);
-  const savings = useScenarioSavings();
+  const impact = useScenarioImpact();
 
   const availableFilters = useMemo(
     () => FILTERABLE.map((f) => ({ field: f, values: distinctValues(graph, f) })).filter((x) => x.values.length > 1),
@@ -110,32 +110,53 @@ export function LeftPanel() {
           <div className="section-title">Scenario impact</div>
           <div className="metric">
             <span>Removed positions</span>
-            <span className="v">{savings.removedCount}</span>
+            <span className="v">{impact.removedCount}</span>
           </div>
-          <div className="metric" style={{ borderBottom: "none" }}>
-            <span>Estimated annual savings</span>
-            <span className="v" style={{ color: savings.savings > 0 ? "var(--ok)" : undefined }}>
-              {savings.savings > 0 ? Intl.NumberFormat().format(savings.savings) : "—"}
+          <div className="metric">
+            <span>Added positions</span>
+            <span className="v">{impact.addedCount}</span>
+          </div>
+          <div className="metric">
+            <span>Removal savings</span>
+            <span className="v" style={{ color: impact.savings > 0 ? "var(--ok)" : undefined }}>
+              {impact.savings > 0 ? money(impact.savings) : "—"}
             </span>
           </div>
-          {savings.removed.length > 0 && (
-            <div style={{ marginTop: 6 }}>
-              {savings.removed.map((r) => (
-                <div key={r.id} className="row spread" style={{ padding: "3px 0", fontSize: 12 }}>
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={r.name}>
-                    {r.name} · {money(r.compensation)}
-                  </span>
-                  <button
-                    className="ghost"
-                    style={{ fontSize: 11, padding: "0 6px" }}
-                    onClick={() => restorePosition(r.id)}
-                  >
-                    Restore
-                  </button>
-                </div>
-              ))}
+          <div className="metric">
+            <span>Added cost</span>
+            <span className="v" style={{ color: impact.addedCost > 0 ? "var(--danger)" : undefined }}>
+              {impact.addedCost > 0 ? money(impact.addedCost) : "—"}
+            </span>
+          </div>
+          <div className="metric" style={{ borderBottom: "none", fontWeight: 600 }}>
+            <span>Net annual change</span>
+            <span
+              className="v"
+              style={{ color: impact.netCostChange === 0 ? undefined : impact.netCostChange < 0 ? "var(--ok)" : "var(--danger)" }}
+            >
+              {impact.netCostChange === 0
+                ? "—"
+                : `${impact.netCostChange < 0 ? "−" : "+"}${money(Math.abs(impact.netCostChange))}`}
+            </span>
+          </div>
+
+          {impact.removed.map((r) => (
+            <div key={r.id} className="row spread" style={{ padding: "3px 0", fontSize: 12 }}>
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={r.name}>
+                🗑 {r.name} · {money(r.compensation)}
+              </span>
+              <button className="ghost" style={{ fontSize: 11, padding: "0 6px" }} onClick={() => restorePosition(r.id)}>
+                Restore
+              </button>
             </div>
-          )}
+          ))}
+          {impact.added.map((r) => (
+            <div key={r.id} className="row spread" style={{ padding: "3px 0", fontSize: 12 }}>
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={r.name}>
+                ➕ {r.name} · {money(r.compensation)}
+              </span>
+            </div>
+          ))}
         </>
       )}
 

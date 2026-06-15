@@ -186,7 +186,7 @@ export interface HighlightRule {
   enabled: boolean;
 }
 
-export type ScenarioChangeType = "move" | "remove" | "updateAttribute";
+export type ScenarioChangeType = "move" | "remove" | "add" | "updateAttribute";
 
 export interface ScenarioChange {
   id: string;
@@ -197,6 +197,8 @@ export interface ScenarioChange {
   field?: FieldKey;
   previousValue?: string;
   newValue?: string;
+  /** The created record, for `add` changes (lets the log fully reconstruct state). */
+  record?: OrgRecord;
   timestamp: number;
   comment?: string;
 }
@@ -210,6 +212,8 @@ export interface Scenario {
   parentOverrides: Record<string, string | null>;
   /** Position ids removed in the scenario (their reports move up a level). */
   removed: Record<string, true>;
+  /** New positions created in the scenario (e.g. vacant roles). */
+  added: OrgRecord[];
   /** Ordered change log (also drives undo/redo with the redo stack). */
   changes: ScenarioChange[];
 }
@@ -217,7 +221,11 @@ export interface Scenario {
 export interface ScenarioComparison {
   movedNodes: { id: string; name: string; from: string; to: string }[];
   removedNodes: { id: string; name: string; compensation: number }[];
+  addedNodes: { id: string; name: string; manager: string; compensation: number }[];
   estimatedSavings: number;
+  addedCost: number;
+  /** Added cost minus removed savings (negative = net saving). */
+  netCostChange: number;
   metricDeltas: { key: keyof Metrics; label: string; baseline: number; scenario: number; delta: number }[];
   issuesResolved: number;
   issuesIntroduced: number;

@@ -38,10 +38,19 @@ export function ComparisonModal({ onClose }: { onClose: () => void }) {
 
         <div className="row" style={{ gap: 16, margin: "12px 0", flexWrap: "wrap" }}>
           <span className="badge info">{comparison.movedNodes.length} roles moved</span>
-          <span className="badge info">{comparison.removedNodes.length} positions removed</span>
-          {comparison.estimatedSavings > 0 && (
-            <span className="badge info" style={{ background: "#dcfce7", color: "#166534" }}>
-              {Intl.NumberFormat().format(comparison.estimatedSavings)} est. savings
+          <span className="badge info">{comparison.removedNodes.length} removed</span>
+          <span className="badge info">{comparison.addedNodes.length} added</span>
+          {comparison.netCostChange !== 0 && (
+            <span
+              className="badge"
+              style={
+                comparison.netCostChange < 0
+                  ? { background: "#dcfce7", color: "#166534" }
+                  : { background: "#fee2e2", color: "#991b1b" }
+              }
+            >
+              {comparison.netCostChange < 0 ? "−" : "+"}
+              {Intl.NumberFormat().format(Math.abs(comparison.netCostChange))} net
             </span>
           )}
           {comparison.issuesResolved > 0 && <span className="badge info" style={{ background: "#dcfce7", color: "#166534" }}>{comparison.issuesResolved} issues resolved</span>}
@@ -93,6 +102,26 @@ export function ComparisonModal({ onClose }: { onClose: () => void }) {
               <tbody>
                 {comparison.removedNodes.map((n) => (
                   <tr key={n.id}><td>{n.name}</td><td>{Intl.NumberFormat().format(n.compensation)}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+
+        {comparison.addedNodes.length > 0 && (
+          <>
+            <div className="section-title">Added positions</div>
+            <table className="preview" style={{ fontSize: 13 }}>
+              <thead>
+                <tr><th>Position</th><th>Reports to</th><th>Compensation</th></tr>
+              </thead>
+              <tbody>
+                {comparison.addedNodes.map((n) => (
+                  <tr key={n.id}>
+                    <td>{n.name}</td>
+                    <td>{n.manager}</td>
+                    <td>{Intl.NumberFormat().format(n.compensation)}</td>
+                  </tr>
                 ))}
               </tbody>
             </table>

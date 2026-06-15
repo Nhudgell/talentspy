@@ -43,7 +43,7 @@ fully synthetic organisation.
 | 5.9 Metrics panel | ✅ core MVP metric set, recalculated on filter/focus/scenario |
 | 7.3 Grade-on-grade | ✅ user-editable grade ordering |
 | 9.3 Highlighting | ✅ default rule set with configurable thresholds |
-| 10 Scenario modelling | ✅ scenario mode, drag-to-reparent, remove position (with savings), undo/redo, compare |
+| 10 Scenario modelling | ✅ scenario mode, drag-to-reparent, add vacant position, remove position, cost/savings impact, undo/redo, compare |
 | 11 Export | ✅ chart PNG, metrics CSV, comparison CSV, validation CSV |
 
 ## Architecture

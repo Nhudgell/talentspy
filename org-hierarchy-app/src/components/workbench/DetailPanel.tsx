@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { useStore } from "../../store/useStore";
 import { FIELD_BY_KEY } from "../../core/fields";
 import { compensation } from "../../core/metrics";
+import { AddPositionModal } from "./AddPositionModal";
 import type { FieldKey } from "../../types";
 
 const DETAIL_FIELDS: FieldKey[] = [
@@ -39,6 +41,7 @@ export function DetailPanel() {
   const scenario = useStore((s) => s.scenario);
   const scenarioMode = useStore((s) => s.scenarioMode);
   const removePosition = useStore((s) => s.removePosition);
+  const [showAdd, setShowAdd] = useState(false);
 
   if (!selectedId) {
     return (
@@ -76,11 +79,17 @@ export function DetailPanel() {
           {focusId === node.id ? "Clear focus" : "Focus sub-tree"}
         </button>
         {scenarioMode && (
+          <button onClick={() => setShowAdd(true)} title="Add a vacant report under this position">
+            ➕ Add vacant report
+          </button>
+        )}
+        {scenarioMode && (
           <button onClick={() => removePosition(node.id)} title="Remove this position in the scenario">
             🗑 Remove position
           </button>
         )}
       </div>
+      {showAdd && <AddPositionModal managerId={node.id} onClose={() => setShowAdd(false)} />}
       {scenarioMode && node.directReports > 0 && (
         <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
           Removing this position moves its {node.directReports} direct report

@@ -4,7 +4,7 @@ import { buildHierarchy, isAncestor, subtreeIds } from "../hierarchy";
 import { validate } from "../validate";
 import { computeMetrics, DEFAULT_THRESHOLDS } from "../metrics";
 import { deriveGradeOrder, rankMap } from "../grades";
-import { applyMove, applyRemove, applyScenario, newScenario, restorePosition, validateMove, compareScenario } from "../scenario";
+import { applyAdd, applyMove, applyRemove, applyScenario, makeVacantPosition, newScenario, restorePosition, validateMove, compareScenario } from "../scenario";
 import { autoDetectMapping } from "../fields";
 import { parseCsv, buildRecords } from "../parse";
 
@@ -129,6 +129,43 @@ describe("scenario", () => {
     expect(g2.nodes.get("4")!.parentId).toBe("1");
     expect(g2.nodes.get("5")!.parentId).toBe("1");
     expect(g2.nodes.has("2")).toBe(false);
+  });
+
+  it("adds a vacant position under a manager", () => {
+    const pos = makeVacantPosition("3", { jobTitle: "New Lead", grade: "G3", totalCompensation: "80000" });
+    expect(pos.fields.vacancyStatus).toBe("Vacant");
+    expect(pos.managerId).toBe("3");
+    const scn = applyAdd(newScenario("s"), pos);
+    const records = applyScenario(SAMPLE, scn);
+    expect(records).toHaveLength(SAMPLE.length + 1);
+    const g2 = buildHierarchy(records);
+    expect(g2.nodes.get(pos.id)!.parentId).toBe("3");
+    expect(g2.nodes.get("3")!.directReports).toBe(1);
+  });
+
+  it("undo (drop last change) removes an added position", () => {
+    const pos = makeVacantPosition("1", { jobTitle: "Temp" });
+    let scn = applyAdd(newScenario("s"), pos);
+    expect(scn.added).toHaveLength(1);
+    // simulate undo: drop last change and re-derive (as the store does)
+    scn = { ...scn, changes: [], parentOverrides: {}, removed: {}, added: [] };
+    expect(applyScenario(SAMPLE, scn)).toHaveLength(SAMPLE.length);
+  });
+
+  it("reports added positions, cost and net change in the comparison", () => {
+    const withComp: OrgRecord[] = [
+      rec("1", null, {}, "CEO"),
+      rec("2", "1", { totalCompensation: "150000" }, "VP"),
+    ];
+    const g = buildHierarchy(withComp);
+    const rank = rankMap(deriveGradeOrder(withComp));
+    let scn = applyRemove(newScenario("s"), "2", g); // -150000
+    scn = applyAdd(scn, makeVacantPosition("1", { jobTitle: "Analyst", totalCompensation: "60000" })); // +60000
+    const cmp = compareScenario(withComp, scn, rank, DEFAULT_THRESHOLDS);
+    expect(cmp.addedNodes).toHaveLength(1);
+    expect(cmp.addedCost).toBe(60000);
+    expect(cmp.estimatedSavings).toBe(150000);
+    expect(cmp.netCostChange).toBe(-90000);
   });
 
   it("restore reverses a removal", () => {
