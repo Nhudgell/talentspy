@@ -72,6 +72,18 @@ export function UploadScreen() {
 
         {error && <div className="issue error" style={{ marginTop: 12 }}>{error}</div>}
 
+        <div
+          className="issue info"
+          style={{ marginTop: 12, display: "flex", gap: 10, alignItems: "flex-start" }}
+        >
+          <span style={{ fontSize: 18, lineHeight: 1 }} aria-hidden="true">🔒</span>
+          <div>
+            <strong>Your data stays private.</strong> Your file is processed entirely in your
+            browser and never uploaded. Any data used will remain locally on your laptop, within
+            the browser.
+          </div>
+        </div>
+
         <div className="divider" />
         <div className="row spread">
           <div className="muted" style={{ fontSize: 13 }}>

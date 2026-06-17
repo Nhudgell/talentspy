@@ -74,6 +74,64 @@ src/
     workbench/      # main analytical workbench (canvas, panels, scenario)
 ```
 
+## Data privacy
+
+**Your file is processed entirely in your browser and never uploaded. Any data
+used remains locally on your device, within the browser.**
+
+This app is a fully client-side single-page application. There is no backend,
+no database, and no upload endpoint — the org data you load never travels to a
+server.
+
+### What actually happens to an uploaded file
+
+1. **Read locally.** When you choose a file, the browser reads it into the
+   page's memory using native APIs (`File.text()` for CSV, `File.arrayBuffer()`
+   for XLSX in `components/upload/UploadScreen.tsx`). The file is not sent
+   anywhere.
+2. **Parsed locally.** PapaParse (CSV) and SheetJS (XLSX) run as JavaScript
+   libraries inside your browser tab. They do not transmit data.
+3. **Held in memory only.** The parsed rows, the generated hierarchy, and any
+   scenario edits live in an in-memory store (`store/useStore.ts`) — ordinary
+   React/Zustand state. Nothing is written to disk.
+4. **Rendered locally.** The chart and metrics are computed and drawn from that
+   in-memory state.
+
+### Confirmed by the code
+
+- **No network transmission of your data.** There is no `fetch`, `XMLHttpRequest`,
+  `axios`, or WebSocket anywhere in `src/` — there is no code path that sends the
+  uploaded data off your device, and no upload endpoint exists.
+- **No persistence.** There is no `localStorage`, `sessionStorage`, `indexedDB`,
+  or cookie storage of your data. The only file-writing action is when *you*
+  click an export button, which downloads a CSV/PNG to your own device.
+- **Cleared on close.** Because the data is only in tab memory, refreshing or
+  closing the tab discards it. There is no "data at rest" copy to delete.
+
+### Honest caveats
+
+- **The host serves the app, not your data.** This site is hosted as static
+  files (e.g. on Netlify). The host's standard web logs/analytics see page
+  requests (IP, timestamp, URL) like any website, but they do **not** receive
+  your file contents, because nothing is uploaded.
+- **Local-device exposure still applies.** Since the data sits in your browser's
+  memory, it is visible to browser DevTools, browser extensions running on the
+  page, and anyone with access to that machine or session. Exported files are
+  saved unencrypted to your Downloads folder.
+- **No access controls in the MVP.** There is no authentication, role-based
+  access, or compensation-field masking — whoever opens the tab sees everything
+  in the loaded file. This is the intended MVP posture; the enterprise controls
+  in PRD §12 (auth, RBAC, field masking, retention, audit, secure deletion) are
+  not implemented.
+- **Adding a backend changes this.** The moment saved datasets, shared
+  scenarios, audit trails, or HRIS integration are introduced (PRD v2/v3), data
+  will need to live on a server, and the §12 controls (encryption at rest,
+  RBAC, retention, GDPR deletion-on-request, etc.) become necessary.
+
+For sensitive workforce data, the current "all in the browser" model is a
+deliberate privacy strength — at the cost of persistence, collaboration, and
+server-side governance.
+
 ## Deliberately out of MVP scope
 
 In line with PRD §15.3, this scaffold does **not** include: backend
